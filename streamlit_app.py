@@ -23,7 +23,7 @@ menu = st.sidebar.selectbox("📌 Menu", [
 # =============================
 # SESSION STATE
 # =============================
-for key in ["df_raw","df_median","X_std","labels","df_model"]:
+for key in ["df_raw","df_median","df_model","X_std","labels"]:
     if key not in st.session_state:
         st.session_state[key] = None
 
@@ -73,76 +73,59 @@ elif menu == "Preprocessing":
             df[['sampah_tahunan','pengurangan','penanganan']] = df[['sampah_tahunan','pengurangan','penanganan']].fillna(0)
             st.success("Missing value diisi")
 
-        # =====================
-        # MEDIAN
-        # =====================
         if st.button("Hitung Median"):
+            volume_cols = ['sampah_tahunan','pengurangan','penanganan']
+
             df_median = df.groupby(
                 ['Provinsi','Kabupaten/Kota']
-            )[['sampah_tahunan','pengurangan','penanganan']].median().reset_index()
+            )[volume_cols].median().reset_index()
 
-            df_median = df_median.sort_values(by="Kabupaten/Kota").reset_index(drop=True)
+            # =========================
+            # HITUNG PERSENTASE (UNTUK INTERPRETASI)
+            # =========================
+            df_median["perc_pengurangan"] = (df_median["pengurangan"] / df_median["sampah_tahunan"]) * 100
+            df_median["perc_penanganan"] = (df_median["penanganan"] / df_median["sampah_tahunan"]) * 100
+            df_median["perc_sampah_terkelola"] = (
+                (df_median["pengurangan"] + df_median["penanganan"]) / df_median["sampah_tahunan"]
+            ) * 100
 
-            df_median["perc_pengurangan"] = np.where(
-                df_median["sampah_tahunan"] == 0,
-                0,
-                (df_median["pengurangan"] / df_median["sampah_tahunan"]) * 100
+            # ROUND (SAMAKAN COLAB)
+            df_median[["perc_pengurangan","perc_penanganan","perc_sampah_terkelola"]] = (
+                df_median[["perc_pengurangan","perc_penanganan","perc_sampah_terkelola"]].round(2)
             )
 
-            df_median["perc_penanganan"] = np.where(
-                df_median["sampah_tahunan"] == 0,
-                0,
-                (df_median["penanganan"] / df_median["sampah_tahunan"]) * 100
-            )
-
+            # CLEAN
             df_median = df_median.replace([np.inf, -np.inf], 0)
             df_median = df_median.fillna(0)
 
             st.session_state.df_median = df_median
+            st.session_state.df_model = df_median.copy()
 
             st.success("✅ Median berhasil")
             st.dataframe(df_median.head())
 
-        # =====================
-        # FINAL DATA + SCALING (REVISI DI SINI)
-        # =====================
-        if st.session_state.df_median is not None:
+        # =========================
+        # SCALING (SESUAI COLAB)
+        # =========================
+        if st.session_state.df_model is not None:
 
-            st.subheader("📊 Final Data untuk Modeling")
+            st.subheader("📊 Data untuk Modeling")
 
-            df_model = st.session_state.df_median.copy()
+            X = st.session_state.df_model[['sampah_tahunan','pengurangan','penanganan']]
 
-            df_model['perc_pengurangan'] = np.where(
-                df_model['sampah_tahunan'] == 0,
-                0,
-                (df_model['pengurangan'] / df_model['sampah_tahunan']) * 100
-            )
-
-            df_model['perc_penanganan'] = np.where(
-                df_model['sampah_tahunan'] == 0,
-                0,
-                (df_model['penanganan'] / df_model['sampah_tahunan']) * 100
-            )
-
-            features = ['perc_pengurangan', 'perc_penanganan']
-            X = df_model[features].copy()
-
+            # CLEAN WAJIB
             X = X.replace([np.inf, -np.inf], np.nan)
             X = X.fillna(0)
 
             scaler = StandardScaler()
-            X_std = scaler.fit_transform(X)
+            X_scaled = scaler.fit_transform(X)
 
-            st.session_state.X_std = X_std
-            st.session_state.df_model = df_model
+            st.session_state.X_std = X_scaled
 
-            st.write("Preview Data Model")
+            st.write("Preview Data Modeling")
             st.dataframe(X.head())
 
-            st.write("Statistik Data")
-            st.write(X.describe())
-
-            st.success("✅ Data siap untuk modeling")
+            st.success("✅ Data siap untuk modeling (IDENTIK COLAB)")
 
 # =============================
 # 3. PEMODELAN
@@ -155,6 +138,7 @@ elif menu == "Pemodelan":
 
         st.header("⚙️ K-Means")
 
+        # ELBOW
         inertia = []
         K_range = range(2,10)
 
@@ -168,6 +152,7 @@ elif menu == "Pemodelan":
         ax.plot(K_range, inertia, marker='o')
         st.pyplot(fig)
 
+        # SILHOUETTE
         sil_scores = []
         for k in K_range:
             labels = KMeans(n_clusters=k, random_state=42, n_init=10).fit_predict(X)
@@ -185,6 +170,8 @@ elif menu == "Pemodelan":
             labels = model.fit_predict(X)
 
             st.session_state.labels = labels
+            st.session_state.df_model['Cluster'] = labels
+
             st.success("✅ Clustering selesai")
 
 # =============================
@@ -211,8 +198,7 @@ elif menu == "Interpretasi":
     if st.session_state.labels is None:
         st.warning("Belum clustering")
     else:
-        df = st.session_state.df_model.copy()  # ✅ REVISI DI SINI
-        df['Cluster'] = st.session_state.labels
+        df = st.session_state.df_model.copy()
 
         st.header("🧠 Interpretasi")
 
@@ -238,7 +224,7 @@ elif menu == "Interpretasi":
         st.subheader("🔻 Bottom 10")
         st.dataframe(df_sorted[['Kabupaten/Kota','skor']].tail(10))
 
-        # NARASI
+        # NARASI OTOMATIS
         for i, row in mean_cluster.iterrows():
             if row['perc_penanganan'] >= 70 and row['perc_pengurangan'] >= 30:
                 ket = "✅ Kinerja Baik"
