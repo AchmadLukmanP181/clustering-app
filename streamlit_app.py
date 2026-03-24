@@ -94,9 +94,49 @@ elif menu == "Preprocessing":
                 df_median[["perc_pengurangan","perc_penanganan","perc_sampah_terkelola"]].round(2)
             )
 
+           # =========================
+            # CEK SEBELUM CLEANING
+            # =========================
+            st.subheader("🧹 Cek Data Sebelum Cleaning")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write("Jumlah NaN")
+                st.write(df_median.isna().sum())
+            
+            with col2:
+                st.write("Jumlah Infinite")
+                st.write(np.isinf(df_median.select_dtypes(include=[np.number])).sum())
+            
+            # =========================
             # CLEAN
+            # =========================
             df_median = df_median.replace([np.inf, -np.inf], 0)
             df_median = df_median.fillna(0)
+            
+            # =========================
+            # CEK SETELAH CLEANING
+            # =========================
+            st.subheader("✅ Setelah Cleaning")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write("NaN Setelah Cleaning")
+                st.write(df_median.isna().sum())
+            
+            with col2:
+                st.write("Infinite Setelah Cleaning")
+                st.write(np.isinf(df_median.select_dtypes(include=[np.number])).sum())
+            
+            # =========================
+            # PREVIEW DATA
+            # =========================
+            st.subheader("📊 Preview Data Setelah Cleaning")
+            st.dataframe(df_median.head())
+            
+            st.success("Data sudah bersih dari NaN & Infinite")
 
             st.session_state.df_median = df_median
             st.session_state.df_model = df_median.copy()
@@ -117,15 +157,32 @@ elif menu == "Preprocessing":
             X = X.replace([np.inf, -np.inf], np.nan)
             X = X.fillna(0)
 
+            st.subheader("📊 Sebelum Standardisasi")
+            st.dataframe(X.head())
+            
+            st.write("Statistik Sebelum Scaling")
+            st.write(X.describe())
+            
+            # =========================
+            # STANDARDISASI
+            # =========================
             scaler = StandardScaler()
             X_scaled = scaler.fit_transform(X)
-
+            
+            # UBAH JADI DATAFRAME BIAR RAPI
+            X_scaled_df = pd.DataFrame(X_scaled, columns=X.columns)
+            
+            st.subheader("⚖️ Setelah Standardisasi")
+            st.dataframe(X_scaled_df.head())
+            
+            st.write("Statistik Setelah Scaling")
+            st.write(X_scaled_df.describe())
+            
+            # SIMPAN
             st.session_state.X_std = X_scaled
-
-            st.write("Preview Data Modeling")
-            st.dataframe(X.head())
-
-            st.success("✅ Data siap untuk modeling (IDENTIK COLAB)")
+            st.session_state.X_scaled_df = X_scaled_df
+            
+            st.success("✅ Data berhasil distandardisasi & siap modeling")
 
 # =============================
 # 3. PEMODELAN
