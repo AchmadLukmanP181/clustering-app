@@ -23,7 +23,7 @@ menu = st.sidebar.selectbox("📌 Menu", [
 # =============================
 # SESSION STATE
 # =============================
-for key in ["df_raw","df_median","X_std","labels"]:
+for key in ["df_raw","df_median","X_std","labels","df_model"]:
     if key not in st.session_state:
         st.session_state[key] = None
 
@@ -46,7 +46,6 @@ if menu == "Upload Data":
             how="outer"
         )
 
-        # RENAME (SAMAKAN DENGAN COLAB)
         df.rename(columns={
             'Timbulan Sampah Tahunan (ton/tahun)(A)': 'sampah_tahunan',
             'Pengurangan Sampah Tahunan (ton/tahun)(B)': 'pengurangan',
@@ -75,17 +74,15 @@ elif menu == "Preprocessing":
             st.success("Missing value diisi")
 
         # =====================
-        # MEDIAN (SAMA COLAB)
+        # MEDIAN
         # =====================
         if st.button("Hitung Median"):
             df_median = df.groupby(
                 ['Provinsi','Kabupaten/Kota']
             )[['sampah_tahunan','pengurangan','penanganan']].median().reset_index()
 
-            # WAJIB SORT BIAR HASIL SAMA
             df_median = df_median.sort_values(by="Kabupaten/Kota").reset_index(drop=True)
 
-            # HITUNG PERSENTASE
             df_median["perc_pengurangan"] = np.where(
                 df_median["sampah_tahunan"] == 0,
                 0,
@@ -98,7 +95,6 @@ elif menu == "Preprocessing":
                 (df_median["penanganan"] / df_median["sampah_tahunan"]) * 100
             )
 
-            # CLEAN
             df_median = df_median.replace([np.inf, -np.inf], 0)
             df_median = df_median.fillna(0)
 
@@ -108,25 +104,45 @@ elif menu == "Preprocessing":
             st.dataframe(df_median.head())
 
         # =====================
-        # SCALING
+        # FINAL DATA + SCALING (REVISI DI SINI)
         # =====================
         if st.session_state.df_median is not None:
-            df_median = st.session_state.df_median
 
-            features = ['perc_pengurangan','perc_penanganan']
-            X = df_median[features]
+            st.subheader("📊 Final Data untuk Modeling")
 
-            st.subheader("📊 Sebelum Standarisasi")
-            st.dataframe(X.describe())
+            df_model = st.session_state.df_median.copy()
 
-            if st.button("Standarisasi"):
-                scaler = StandardScaler()
-                X_std = scaler.fit_transform(X)
+            df_model['perc_pengurangan'] = np.where(
+                df_model['sampah_tahunan'] == 0,
+                0,
+                (df_model['pengurangan'] / df_model['sampah_tahunan']) * 100
+            )
 
-                st.session_state.X_std = X_std
+            df_model['perc_penanganan'] = np.where(
+                df_model['sampah_tahunan'] == 0,
+                0,
+                (df_model['penanganan'] / df_model['sampah_tahunan']) * 100
+            )
 
-                st.subheader("📏 Setelah Standarisasi")
-                st.dataframe(pd.DataFrame(X_std, columns=features).describe())
+            features = ['perc_pengurangan', 'perc_penanganan']
+            X = df_model[features].copy()
+
+            X = X.replace([np.inf, -np.inf], np.nan)
+            X = X.fillna(0)
+
+            scaler = StandardScaler()
+            X_std = scaler.fit_transform(X)
+
+            st.session_state.X_std = X_std
+            st.session_state.df_model = df_model
+
+            st.write("Preview Data Model")
+            st.dataframe(X.head())
+
+            st.write("Statistik Data")
+            st.write(X.describe())
+
+            st.success("✅ Data siap untuk modeling")
 
 # =============================
 # 3. PEMODELAN
@@ -139,7 +155,6 @@ elif menu == "Pemodelan":
 
         st.header("⚙️ K-Means")
 
-        # ELBOW
         inertia = []
         K_range = range(2,10)
 
@@ -153,7 +168,6 @@ elif menu == "Pemodelan":
         ax.plot(K_range, inertia, marker='o')
         st.pyplot(fig)
 
-        # SILHOUETTE
         sil_scores = []
         for k in K_range:
             labels = KMeans(n_clusters=k, random_state=42, n_init=10).fit_predict(X)
@@ -197,7 +211,7 @@ elif menu == "Interpretasi":
     if st.session_state.labels is None:
         st.warning("Belum clustering")
     else:
-        df = st.session_state.df_median.copy()
+        df = st.session_state.df_model.copy()  # ✅ REVISI DI SINI
         df['Cluster'] = st.session_state.labels
 
         st.header("🧠 Interpretasi")
