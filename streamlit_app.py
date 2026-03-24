@@ -241,3 +241,51 @@ elif menu == "Interpretasi":
             st.write(f"Pengurangan: {row['perc_pengurangan']:.2f}%")
             st.write(f"Penanganan: {row['perc_penanganan']:.2f}%")
             st.write(f"👉 {ket}")
+            st.subheader("📊 Visualisasi Cluster (Scatter Plot)")
+
+fig, ax = plt.subplots()
+
+scatter = ax.scatter(
+    df['perc_pengurangan'],
+    df['perc_penanganan'],
+    c=df['Cluster'],
+)
+
+ax.set_xlabel("Persentase Pengurangan (%)")
+ax.set_ylabel("Persentase Penanganan (%)")
+ax.set_title("Distribusi Cluster")
+
+st.pyplot(fig)
+st.subheader("🏆 Ranking Wilayah")
+
+df['skor_kinerja'] = (
+    (df['perc_pengurangan'] * 0.3) +
+    (df['perc_penanganan'] * 0.7)
+)
+
+df_sorted = df.sort_values(by="skor_kinerja", ascending=False)
+
+st.markdown("### 🔝 Top 10 Wilayah Terbaik")
+st.dataframe(df_sorted[['Kabupaten/Kota','skor_kinerja']].head(10))
+
+st.markdown("### 🔻 Bottom 10 Wilayah Terburuk")
+st.dataframe(df_sorted[['Kabupaten/Kota','skor_kinerja']].tail(10))
+st.subheader("🧠 Narasi Otomatis")
+
+for i, row in mean_cluster.iterrows():
+
+    if row['perc_penanganan'] >= 70 and row['perc_pengurangan'] >= 30:
+        narasi = "Wilayah dalam cluster ini memiliki kinerja pengelolaan sampah yang sangat baik karena telah memenuhi target nasional (JAKSTRANAS)."
+    
+    elif row['perc_penanganan'] >= 50:
+        narasi = "Wilayah dalam cluster ini menunjukkan kinerja yang cukup baik, namun masih belum sepenuhnya memenuhi target nasional."
+    
+    else:
+        narasi = "Wilayah dalam cluster ini memiliki kinerja pengelolaan sampah yang rendah dan perlu mendapatkan perhatian khusus dari pemerintah."
+
+    st.markdown(f"""
+    ### Cluster {i}
+    - Rata-rata Pengurangan: **{row['perc_pengurangan']:.2f}%**
+    - Rata-rata Penanganan: **{row['perc_penanganan']:.2f}%**
+    - 📌 **Kesimpulan:** {narasi}
+    """)
