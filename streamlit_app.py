@@ -10,7 +10,7 @@ from sklearn.metrics import silhouette_score, davies_bouldin_score
 st.set_page_config(layout="wide")
 
 # =============================
-# SIDEBAR
+# SIDEBAR MENU
 # =============================
 menu = st.sidebar.selectbox("Menu", [
     "Upload Data",
@@ -23,23 +23,18 @@ menu = st.sidebar.selectbox("Menu", [
 # =============================
 # SESSION STATE
 # =============================
-if "df_raw" not in st.session_state:
-    st.session_state.df_raw = None
-if "df_median" not in st.session_state:
-    st.session_state.df_median = None
-if "X_std" not in st.session_state:
-    st.session_state.X_std = None
-if "labels" not in st.session_state:
-    st.session_state.labels = None
+for key in ["df_raw","df_median","X_std","labels"]:
+    if key not in st.session_state:
+        st.session_state[key] = None
 
 # =============================
-# 1. UPLOAD
+# 1. UPLOAD DATA
 # =============================
 if menu == "Upload Data":
-    st.header("Upload Data")
+    st.header("📤 Upload Data")
 
-    file_timbulan = st.file_uploader("Timbulan", type="xlsx")
-    file_capaian = st.file_uploader("Capaian", type="xlsx")
+    file_timbulan = st.file_uploader("Upload Timbulan", type="xlsx")
+    file_capaian = st.file_uploader("Upload Capaian", type="xlsx")
 
     if file_timbulan and file_capaian:
         df_timbulan = pd.read_excel(file_timbulan)
@@ -47,7 +42,7 @@ if menu == "Upload Data":
 
         df = df_timbulan.merge(
             df_capaian,
-            on=["Tahun", "Provinsi", "Kabupaten/Kota"],
+            on=["Tahun","Provinsi","Kabupaten/Kota"],
             how="outer"
         )
 
@@ -58,7 +53,7 @@ if menu == "Upload Data":
         }, inplace=True)
 
         st.session_state.df_raw = df
-        st.success("Data berhasil diupload")
+        st.success("✅ Data berhasil diupload")
         st.dataframe(df.head())
 
 # =============================
@@ -70,40 +65,73 @@ elif menu == "Preprocessing":
     else:
         df = st.session_state.df_raw.copy()
 
-        st.subheader("Missing Value")
+        st.subheader("🔍 Missing Value")
         st.write(df.isnull().sum())
 
         if st.button("Isi Missing dengan 0"):
             df[['sampah_tahunan','pengurangan','penanganan']] = df[['sampah_tahunan','pengurangan','penanganan']].fillna(0)
+            st.success("Missing value diisi 0")
 
+        # =====================
+        # MEDIAN
+        # =====================
         if st.button("Hitung Median"):
-            df_median = df.groupby(["Kabupaten/Kota"])[
+            df_median = df.groupby("Kabupaten/Kota")[
                 ['sampah_tahunan','pengurangan','penanganan']
             ].median().reset_index()
 
-            df_median["perc_pengurangan"] = df_median["pengurangan"] / df_median["sampah_tahunan"] * 100
-            df_median["perc_penanganan"] = df_median["penanganan"] / df_median["sampah_tahunan"] * 100
+            # =====================
+            # FIX PEMBAGIAN NOL
+            # =====================
+            df_median["perc_pengurangan"] = np.where(
+                df_median["sampah_tahunan"] == 0,
+                0,
+                (df_median["pengurangan"] / df_median["sampah_tahunan"]) * 100
+            )
+
+            df_median["perc_penanganan"] = np.where(
+                df_median["sampah_tahunan"] == 0,
+                0,
+                (df_median["penanganan"] / df_median["sampah_tahunan"]) * 100
+            )
+
+            # =====================
+            # CLEAN DATA (ANTI ERROR)
+            # =====================
+            df_median = df_median.replace([np.inf, -np.inf], 0)
+            df_median = df_median.fillna(0)
 
             st.session_state.df_median = df_median
+
+            st.success("✅ Median & persentase berhasil")
             st.dataframe(df_median)
 
+        # =====================
+        # FEATURE + SCALING
+        # =====================
         if st.session_state.df_median is not None:
             df_median = st.session_state.df_median
 
             features = st.multiselect(
-                "Pilih variabel",
+                "Pilih Variabel",
                 ['perc_pengurangan','perc_penanganan'],
                 default=['perc_pengurangan','perc_penanganan']
             )
 
             if st.button("Standarisasi"):
+                X = df_median[features]
+
+                # CLEAN LAGI (DOUBLE SAFETY)
+                X = X.replace([np.inf, -np.inf], np.nan)
+                X = X.fillna(0)
+
                 scaler = StandardScaler()
-                X_std = scaler.fit_transform(df_median[features])
+                X_std = scaler.fit_transform(X)
 
                 st.session_state.X_std = X_std
 
                 st.subheader("Sebelum")
-                st.dataframe(df_median[features].describe())
+                st.dataframe(X.describe())
 
                 st.subheader("Sesudah")
                 st.dataframe(pd.DataFrame(X_std, columns=features).describe())
@@ -115,9 +143,17 @@ elif menu == "Pemodelan":
     if st.session_state.X_std is None:
         st.warning("Preprocessing dulu")
     else:
-        X = st.session_state.X_std
+        X = pd.DataFrame(st.session_state.X_std)
 
-        st.subheader("Elbow")
+        # CLEAN FINAL (ANTI CRASH)
+        X = X.replace([np.inf, -np.inf], np.nan)
+        X = X.fillna(0)
+
+        st.header("⚙️ K-Means")
+
+        # =====================
+        # ELBOW
+        # =====================
         inertia = []
         K_range = range(2,10)
 
@@ -126,28 +162,37 @@ elif menu == "Pemodelan":
             model.fit(X)
             inertia.append(model.inertia_)
 
+        st.subheader("📉 Elbow Method")
         fig, ax = plt.subplots()
         ax.plot(K_range, inertia, marker='o')
+        ax.set_xlabel("k")
+        ax.set_ylabel("SSE")
         st.pyplot(fig)
 
-        st.subheader("Silhouette")
-        sil = []
+        # =====================
+        # SILHOUETTE
+        # =====================
+        sil_scores = []
         for k in K_range:
             labels = KMeans(n_clusters=k, random_state=42, n_init=10).fit_predict(X)
-            sil.append(silhouette_score(X, labels))
+            sil_scores.append(silhouette_score(X, labels))
 
+        st.subheader("📈 Silhouette")
         fig, ax = plt.subplots()
-        ax.plot(K_range, sil, marker='o')
+        ax.plot(K_range, sil_scores, marker='o')
         st.pyplot(fig)
 
+        # =====================
+        # PILIH K
+        # =====================
         k = st.slider("Jumlah Cluster", 2, 6, 3)
 
-        if st.button("Jalankan KMeans"):
+        if st.button("🚀 Jalankan KMeans"):
             model = KMeans(n_clusters=k, random_state=42, n_init=10)
             labels = model.fit_predict(X)
 
             st.session_state.labels = labels
-            st.success("Clustering selesai")
+            st.success("✅ Clustering selesai")
 
 # =============================
 # 4. EVALUASI
@@ -156,11 +201,17 @@ elif menu == "Evaluasi":
     if st.session_state.labels is None:
         st.warning("Belum clustering")
     else:
-        X = st.session_state.X_std
+        X = pd.DataFrame(st.session_state.X_std)
+        X = X.fillna(0)
+
         labels = st.session_state.labels
 
-        st.write("Silhouette:", silhouette_score(X, labels))
-        st.write("DBI:", davies_bouldin_score(X, labels))
+        sil = silhouette_score(X, labels)
+        dbi = davies_bouldin_score(X, labels)
+
+        st.header("🧪 Evaluasi")
+        st.write(f"Silhouette Score: {sil:.3f}")
+        st.write(f"Davies-Bouldin Index: {dbi:.3f}")
 
 # =============================
 # 5. INTERPRETASI
@@ -172,15 +223,21 @@ elif menu == "Interpretasi":
         df = st.session_state.df_median.copy()
         df['Cluster'] = st.session_state.labels
 
-        mean = df.groupby('Cluster')[['perc_pengurangan','perc_penanganan']].mean()
-        st.dataframe(mean)
+        st.header("🧠 Interpretasi JAKSTRANAS")
 
-        for i, row in mean.iterrows():
+        mean_cluster = df.groupby('Cluster')[['perc_pengurangan','perc_penanganan']].mean()
+        st.dataframe(mean_cluster)
+
+        for i, row in mean_cluster.iterrows():
             st.markdown(f"### Cluster {i}")
 
             if row['perc_penanganan'] >= 70 and row['perc_pengurangan'] >= 30:
-                ket = "Kinerja Baik"
+                ket = "✅ Kinerja Baik"
+            elif row['perc_penanganan'] >= 50:
+                ket = "⚠️ Cukup"
             else:
-                ket = "Perlu peningkatan"
+                ket = "❌ Rendah"
 
-            st.write(ket)
+            st.write(f"Pengurangan: {row['perc_pengurangan']:.2f}%")
+            st.write(f"Penanganan: {row['perc_penanganan']:.2f}%")
+            st.write(f"👉 {ket}")
