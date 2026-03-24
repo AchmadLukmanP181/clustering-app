@@ -217,75 +217,121 @@ elif menu == "Evaluasi":
 # 5. INTERPRETASI
 # =============================
 elif menu == "Interpretasi":
-    if st.session_state.labels is None:
-        st.warning("Belum clustering")
+    st.header("🧠 Interpretasi Hasil Clustering")
+
+    # =====================
+    # VALIDASI DATA
+    # =====================
+    if st.session_state.df_median is None:
+        st.warning("❌ Data median belum tersedia. Lakukan preprocessing dulu.")
+    elif st.session_state.labels is None:
+        st.warning("❌ Clustering belum dilakukan.")
     else:
+        # =====================
+        # AMBIL DATA
+        # =====================
         df = st.session_state.df_median.copy()
         df['Cluster'] = st.session_state.labels
 
-        st.header("🧠 Interpretasi JAKSTRANAS")
+        # Pastikan tidak ada error
+        df = df.replace([np.inf, -np.inf], 0)
+        df = df.fillna(0)
 
-        mean_cluster = df.groupby('Cluster')[['perc_pengurangan','perc_penanganan']].mean()
+        # =====================
+        # RATA-RATA PER CLUSTER
+        # =====================
+        mean_cluster = df.groupby('Cluster')[['perc_pengurangan','perc_penanganan']].mean().round(2)
+
+        st.subheader("📊 Rata-rata per Cluster")
         st.dataframe(mean_cluster)
 
+        # =====================
+        # SCATTER PLOT
+        # =====================
+        st.subheader("📊 Visualisasi Cluster")
+
+        fig, ax = plt.subplots()
+
+        scatter = ax.scatter(
+            df['perc_pengurangan'],
+            df['perc_penanganan'],
+            c=df['Cluster']
+        )
+
+        ax.set_xlabel("Persentase Pengurangan (%)")
+        ax.set_ylabel("Persentase Penanganan (%)")
+        ax.set_title("Distribusi Cluster")
+
+        st.pyplot(fig)
+
+        # =====================
+        # RANKING WILAYAH
+        # =====================
+        st.subheader("🏆 Ranking Wilayah (Bobot JAKSTRANAS 30:70)")
+
+        df['skor_kinerja'] = (
+            (df['perc_pengurangan'] * 0.3) +
+            (df['perc_penanganan'] * 0.7)
+        )
+
+        df_sorted = df.sort_values(by="skor_kinerja", ascending=False)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("### 🔝 Top 10 Wilayah Terbaik")
+            st.dataframe(df_sorted[['Kabupaten/Kota','skor_kinerja']].head(10))
+
+        with col2:
+            st.markdown("### 🔻 Bottom 10 Wilayah Terburuk")
+            st.dataframe(df_sorted[['Kabupaten/Kota','skor_kinerja']].tail(10))
+
+        # =====================
+        # WILAYAH PER CLUSTER
+        # =====================
+        st.subheader("📍 Wilayah per Cluster")
+
+        wilayah_cluster = df.groupby('Cluster')['Kabupaten/Kota'].apply(list)
+
+        for cluster, wilayah in wilayah_cluster.items():
+            st.markdown(f"**Cluster {cluster}** ({len(wilayah)} wilayah)")
+            st.write(", ".join(wilayah))
+
+        # =====================
+        # AUTO NARASI
+        # =====================
+        st.subheader("🧠 Narasi Otomatis (Berdasarkan JAKSTRANAS)")
+
         for i, row in mean_cluster.iterrows():
-            st.markdown(f"### Cluster {i}")
 
             if row['perc_penanganan'] >= 70 and row['perc_pengurangan'] >= 30:
-                ket = "✅ Kinerja Baik"
+                narasi = "Kinerja pengelolaan sampah sangat baik karena telah memenuhi target nasional (JAKSTRANAS)."
+            
             elif row['perc_penanganan'] >= 50:
-                ket = "⚠️ Cukup"
+                narasi = "Kinerja pengelolaan sampah cukup baik, namun masih belum sepenuhnya mencapai target nasional."
+            
             else:
-                ket = "❌ Rendah"
+                narasi = "Kinerja pengelolaan sampah masih rendah dan perlu peningkatan signifikan."
 
-            st.write(f"Pengurangan: {row['perc_pengurangan']:.2f}%")
-            st.write(f"Penanganan: {row['perc_penanganan']:.2f}%")
-            st.write(f"👉 {ket}")
-            st.subheader("📊 Visualisasi Cluster (Scatter Plot)")
+            st.markdown(f"""
+            ### Cluster {i}
+            - 📉 Pengurangan: **{row['perc_pengurangan']:.2f}%**
+            - 📊 Penanganan: **{row['perc_penanganan']:.2f}%**
+            - 📌 Kesimpulan: **{narasi}**
+            """)
 
-fig, ax = plt.subplots()
+        # =====================
+        # DOWNLOAD HASIL
+        # =====================
+        st.subheader("📥 Download Hasil")
 
-scatter = ax.scatter(
-    df['perc_pengurangan'],
-    df['perc_penanganan'],
-    c=df['Cluster'],
-)
+        df_download = df[['Kabupaten/Kota','Cluster','skor_kinerja']]
 
-ax.set_xlabel("Persentase Pengurangan (%)")
-ax.set_ylabel("Persentase Penanganan (%)")
-ax.set_title("Distribusi Cluster")
+        csv = df_download.to_csv(index=False).encode('utf-8')
 
-st.pyplot(fig)
-st.subheader("🏆 Ranking Wilayah")
-
-df['skor_kinerja'] = (
-    (df['perc_pengurangan'] * 0.3) +
-    (df['perc_penanganan'] * 0.7)
-)
-
-df_sorted = df.sort_values(by="skor_kinerja", ascending=False)
-
-st.markdown("### 🔝 Top 10 Wilayah Terbaik")
-st.dataframe(df_sorted[['Kabupaten/Kota','skor_kinerja']].head(10))
-
-st.markdown("### 🔻 Bottom 10 Wilayah Terburuk")
-st.dataframe(df_sorted[['Kabupaten/Kota','skor_kinerja']].tail(10))
-st.subheader("🧠 Narasi Otomatis")
-
-for i, row in mean_cluster.iterrows():
-
-    if row['perc_penanganan'] >= 70 and row['perc_pengurangan'] >= 30:
-        narasi = "Wilayah dalam cluster ini memiliki kinerja pengelolaan sampah yang sangat baik karena telah memenuhi target nasional (JAKSTRANAS)."
-    
-    elif row['perc_penanganan'] >= 50:
-        narasi = "Wilayah dalam cluster ini menunjukkan kinerja yang cukup baik, namun masih belum sepenuhnya memenuhi target nasional."
-    
-    else:
-        narasi = "Wilayah dalam cluster ini memiliki kinerja pengelolaan sampah yang rendah dan perlu mendapatkan perhatian khusus dari pemerintah."
-
-    st.markdown(f"""
-    ### Cluster {i}
-    - Rata-rata Pengurangan: **{row['perc_pengurangan']:.2f}%**
-    - Rata-rata Penanganan: **{row['perc_penanganan']:.2f}%**
-    - 📌 **Kesimpulan:** {narasi}
-    """)
+        st.download_button(
+            label="Download CSV",
+            data=csv,
+            file_name="hasil_clustering.csv",
+            mime="text/csv"
+        )
