@@ -69,10 +69,10 @@ elif menu == "Preprocessing":
         st.subheader("🔍 Missing Value")
         st.write(df.isnull().sum())
 
-        if st.button("Isi Missing Value"):
+    if st.button("Isi Missing Value"):
 
-    st.subheader("📊 Data Sebelum Handling Missing Value")
-    st.dataframe(df.head())
+        st.subheader("📊 Data Sebelum Handling Missing Value")
+        st.dataframe(df.head())
 
     # =========================
     # CEK JUMLAH NaN
