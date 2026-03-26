@@ -69,110 +69,79 @@ elif menu == "Preprocessing":
         st.subheader("🔍 Missing Value")
         st.write(df.isnull().sum())
 
-    if st.button("Isi Missing Value"):
+        # =========================
+        # HANDLE MISSING VALUE
+        # =========================
+        if st.button("Isi Missing Value"):
 
-        st.subheader("📊 Data Sebelum Handling Missing Value")
-        st.dataframe(df.head())
+            st.subheader("📊 Data Sebelum Handling Missing Value")
+            st.dataframe(df.head())
 
-    # =========================
-    # CEK JUMLAH NaN
-    # =========================
-    st.write("Jumlah Missing Value Sebelum:")
-    st.write(df.isna().sum())
+            st.write("Jumlah Missing Value Sebelum:")
+            st.write(df.isna().sum())
 
-    # =========================
-    # HANDLE (SEMUA NUMERIK)
-    # =========================
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    df[numeric_cols] = df[numeric_cols].fillna(0)
+            numeric_cols = df.select_dtypes(include=[np.number]).columns
+            df[numeric_cols] = df[numeric_cols].fillna(0)
 
-    # =========================
-    # HASIL SETELAH
-    # =========================
-    st.subheader("✅ Data Setelah Handling Missing Value")
-    st.dataframe(df.head())
+            st.subheader("✅ Data Setelah Handling Missing Value")
+            st.dataframe(df.head())
 
-    st.write("Jumlah Missing Value Setelah:")
-    st.write(df.isna().sum())
+            st.write("Jumlah Missing Value Setelah:")
+            st.write(df.isna().sum())
 
-    # SIMPAN BALIK
-    st.session_state.df_raw = df
+            st.session_state.df_raw = df
 
-    st.success("Missing value berhasil diisi (SEMUA VARIABEL NUMERIK)")
-    
+            st.success("Missing value berhasil diisi")
+
+        # =========================
+        # MEDIAN
+        # =========================
         if st.button("Hitung Median"):
+
             volume_cols = ['sampah_tahunan','pengurangan','penanganan']
 
             df_median = df.groupby(
                 ['Provinsi','Kabupaten/Kota']
             )[volume_cols].median().reset_index()
 
-            # =========================
-            # HITUNG PERSENTASE (UNTUK INTERPRETASI)
-            # =========================
+            # HITUNG PERSENTASE
             df_median["perc_pengurangan"] = (df_median["pengurangan"] / df_median["sampah_tahunan"]) * 100
             df_median["perc_penanganan"] = (df_median["penanganan"] / df_median["sampah_tahunan"]) * 100
             df_median["perc_sampah_terkelola"] = (
                 (df_median["pengurangan"] + df_median["penanganan"]) / df_median["sampah_tahunan"]
             ) * 100
 
-            # ROUND (SAMAKAN COLAB)
-            df_median[["perc_pengurangan","perc_penanganan","perc_sampah_terkelola"]] = (
-                df_median[["perc_pengurangan","perc_penanganan","perc_sampah_terkelola"]].round(2)
-            )
+            df_median = df_median.round(2)
 
-           # =========================
-            # CEK SEBELUM CLEANING
             # =========================
-            st.subheader("🧹 Cek Data Sebelum Cleaning")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.write("Jumlah NaN")
-                st.write(df_median.isna().sum())
-            
-            with col2:
-                st.write("Jumlah Infinite")
-                st.write(np.isinf(df_median.select_dtypes(include=[np.number])).sum())
-            
+            # CEK SEBELUM CLEAN
+            # =========================
+            st.subheader("🧹 Sebelum Cleaning")
+            st.write("NaN:")
+            st.write(df_median.isna().sum())
+
             # =========================
             # CLEAN
             # =========================
             df_median = df_median.replace([np.inf, -np.inf], 0)
             df_median = df_median.fillna(0)
-            
+
             # =========================
-            # CEK SETELAH CLEANING
+            # SETELAH CLEAN
             # =========================
             st.subheader("✅ Setelah Cleaning")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.write("NaN Setelah Cleaning")
-                st.write(df_median.isna().sum())
-            
-            with col2:
-                st.write("Infinite Setelah Cleaning")
-                st.write(np.isinf(df_median.select_dtypes(include=[np.number])).sum())
-            
-            # =========================
-            # PREVIEW DATA
-            # =========================
-            st.subheader("📊 Preview Data Setelah Cleaning")
+            st.write(df_median.isna().sum())
+
+            st.subheader("📊 Preview Data")
             st.dataframe(df_median.head())
-            
-            st.success("Data sudah bersih dari NaN & Infinite")
 
             st.session_state.df_median = df_median
             st.session_state.df_model = df_median.copy()
 
             st.success("✅ Median berhasil")
-            st.dataframe(df_median.head())
 
         # =========================
-        # SCALING (SESUAI COLAB)
+        # SCALING
         # =========================
         if st.session_state.df_model is not None:
 
@@ -180,36 +149,25 @@ elif menu == "Preprocessing":
 
             X = st.session_state.df_model[['sampah_tahunan','pengurangan','penanganan']]
 
-            # CLEAN WAJIB
             X = X.replace([np.inf, -np.inf], np.nan)
             X = X.fillna(0)
 
             st.subheader("📊 Sebelum Standardisasi")
             st.dataframe(X.head())
-            
-            st.write("Statistik Sebelum Scaling")
             st.write(X.describe())
-            
-            # =========================
-            # STANDARDISASI
-            # =========================
+
             scaler = StandardScaler()
             X_scaled = scaler.fit_transform(X)
-            
-            # UBAH JADI DATAFRAME BIAR RAPI
+
             X_scaled_df = pd.DataFrame(X_scaled, columns=X.columns)
-            
+
             st.subheader("⚖️ Setelah Standardisasi")
             st.dataframe(X_scaled_df.head())
-            
-            st.write("Statistik Setelah Scaling")
             st.write(X_scaled_df.describe())
-            
-            # SIMPAN
+
             st.session_state.X_std = X_scaled
-            st.session_state.X_scaled_df = X_scaled_df
-            
-            st.success("✅ Data berhasil distandardisasi & siap modeling")
+
+            st.success("✅ Data siap untuk modeling")
 
 # =============================
 # 3. PEMODELAN
@@ -222,26 +180,24 @@ elif menu == "Pemodelan":
 
         st.header("⚙️ K-Means")
 
-        # ELBOW
         inertia = []
+        sil_scores = []
         K_range = range(2,10)
 
         for k in K_range:
             model = KMeans(n_clusters=k, random_state=42, n_init=10)
             model.fit(X)
-            inertia.append(model.inertia_)
 
+            inertia.append(model.inertia_)
+            sil_scores.append(silhouette_score(X, model.labels_))
+
+        # ELBOW
         st.subheader("📉 Elbow")
         fig, ax = plt.subplots()
         ax.plot(K_range, inertia, marker='o')
         st.pyplot(fig)
 
         # SILHOUETTE
-        sil_scores = []
-        for k in K_range:
-            labels = KMeans(n_clusters=k, random_state=42, n_init=10).fit_predict(X)
-            sil_scores.append(silhouette_score(X, labels))
-
         st.subheader("📈 Silhouette")
         fig, ax = plt.subplots()
         ax.plot(K_range, sil_scores, marker='o')
@@ -308,7 +264,7 @@ elif menu == "Interpretasi":
         st.subheader("🔻 Bottom 10")
         st.dataframe(df_sorted[['Kabupaten/Kota','skor']].tail(10))
 
-        # NARASI OTOMATIS
+        # INTERPRETASI
         for i, row in mean_cluster.iterrows():
             if row['perc_penanganan'] >= 70 and row['perc_pengurangan'] >= 30:
                 ket = "✅ Kinerja Baik"
