@@ -269,9 +269,9 @@ elif menu == "Interpretasi":
             if row['perc_penanganan'] >= 70 and row['perc_pengurangan'] >= 30:
                 ket = "✅ Kinerja Baik"
             elif row['perc_penanganan'] >= 50:
-                ket = "⚠️ Cukup"
+                ket = "Tinggi"
             else:
-                ket = "❌ Rendah"
+                ket = "Rendah"
 
             st.markdown(f"""
             ### Cluster {i}
