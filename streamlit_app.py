@@ -70,8 +70,35 @@ elif menu == "Preprocessing":
         st.write(df.isnull().sum())
 
         if st.button("Isi Missing Value"):
-            df[['sampah_tahunan','pengurangan','penanganan']] = df[['sampah_tahunan','pengurangan','penanganan']].fillna(0)
-            st.success("Missing value diisi")
+
+    st.subheader("📊 Data Sebelum Handling Missing Value")
+    st.dataframe(df.head())
+
+    # =========================
+    # CEK JUMLAH NaN
+    # =========================
+    st.write("Jumlah Missing Value Sebelum:")
+    st.write(df.isna().sum())
+
+    # =========================
+    # HANDLE (SEMUA NUMERIK)
+    # =========================
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    df[numeric_cols] = df[numeric_cols].fillna(0)
+
+    # =========================
+    # HASIL SETELAH
+    # =========================
+    st.subheader("✅ Data Setelah Handling Missing Value")
+    st.dataframe(df.head())
+
+    st.write("Jumlah Missing Value Setelah:")
+    st.write(df.isna().sum())
+
+    # SIMPAN BALIK
+    st.session_state.df_raw = df
+
+    st.success("Missing value berhasil diisi (SEMUA VARIABEL NUMERIK)")
 
         if st.button("Hitung Median"):
             volume_cols = ['sampah_tahunan','pengurangan','penanganan']
