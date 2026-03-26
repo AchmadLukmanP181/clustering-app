@@ -99,7 +99,7 @@ elif menu == "Preprocessing":
     st.session_state.df_raw = df
 
     st.success("Missing value berhasil diisi (SEMUA VARIABEL NUMERIK)")
-
+    
         if st.button("Hitung Median"):
             volume_cols = ['sampah_tahunan','pengurangan','penanganan']
 
