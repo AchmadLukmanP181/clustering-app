@@ -152,7 +152,7 @@ elif menu == "Preprocessing":
             X = X.replace([np.inf, -np.inf], np.nan)
             X = X.fillna(0)
 
-            st.subheader("📊 Sebelum Standardisasi")
+            st.subheader("📊 Sebelum Standarisasi")
             st.dataframe(X.head())
             st.write(X.describe())
 
@@ -161,7 +161,7 @@ elif menu == "Preprocessing":
 
             X_scaled_df = pd.DataFrame(X_scaled, columns=X.columns)
 
-            st.subheader("⚖️ Setelah Standardisasi")
+            st.subheader("⚖️ Setelah Standarisasi")
             st.dataframe(X_scaled_df.head())
             st.write(X_scaled_df.describe())
 
